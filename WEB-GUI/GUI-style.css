@@ -1,0 +1,47 @@
+body {
+    background-color: #1a1a1a;
+    color: #00ff00;
+    font-family: "Courier New", Courier, monospace;
+    margin: 0;
+    padding: 20px;
+}
+
+h1, h2 {
+    text-align: center;
+    text-shadow: 0 0 5px #00ff00;
+}
+
+.panel {
+    background-color: #2a2a2a;
+    border: 1px solid #00ff00;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+input, select, button {
+    background-color: #333;
+    color: #00ff00;
+    border: 1px solid #00ff00;
+    padding: 8px;
+    width: calc(100% - 18px);
+    margin-bottom: 10px;
+}
+
+button {
+    cursor: pointer;
+    width: 100%;
+}
+
+button:hover {
+    background-color: #00ff00;
+    color: #1a1a1a;
+}
+
+#output {
+    height: 200px;
+    overflow-y: scroll;
+    border: 1px solid #00ff00;
+    padding: 10px;
+    background-color: #111;
+}

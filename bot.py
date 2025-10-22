@@ -115,6 +115,7 @@ def detect_platform_key():
 
 def prepare_tor():
     print("[DEBUG_PT] - PREPARING TOR...")
+    os.makedirs(TOR_FOLDER, exist_ok=True)
 
     # First, check if Tor exists in the system PATH
     system = platform.system()

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Exfiltration Control</title>
+    <link rel="stylesheet" href="../GUI-style.css"> <!-- Assuming a shared stylesheet -->
+</head>
+<body>
+    <h1>Data Exfiltration</h1>
+    <div class="panel">
+        <h2>Parameters</h2>
+        <input type="text" id="file_path" placeholder="File Path">
+        <input type="text" id="method" placeholder="Method (e.g., direct)">
+        <input type="text" id="search_pattern" placeholder="Search Pattern (optional)">
+        <button onclick="execute()">Exfiltrate</button>
+    </div>
+    <div class="panel">
+        <h2>Output</h2>
+        <div id="output"></div>
+    </div>
+    <script>
+        function execute() {
+            const params = {
+                file_path: document.getElementById('file_path').value,
+                method: document.getElementById('method').value,
+                search_pattern: document.getElementById('search_pattern').value
+            };
+            // Send command to C2 server
+            console.log('Executing with params:', params);
+        }
+    </script>
+</body>
+</html>

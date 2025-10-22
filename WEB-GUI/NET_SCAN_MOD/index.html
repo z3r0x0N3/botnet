@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Scan Control</title>
+    <link rel="stylesheet" href="../GUI-style.css">
+</head>
+<body>
+    <h1>Network Scanner</h1>
+    <div class="panel">
+        <h2>Parameters</h2>
+        <input type="text" id="subnet" placeholder="Subnet (e.g., 192.168.1.0/24)">
+        <input type="text" id="ports" placeholder="Ports (comma-separated, e.g., 80,443,8080)">
+        <button onclick="execute()">Scan Network</button>
+    </div>
+    <div class="panel">
+        <h2>Output</h2>
+        <div id="output"></div>
+    </div>
+    <script>
+        function execute() {
+            const portsRaw = document.getElementById('ports').value;
+            const params = {
+                subnet: document.getElementById('subnet').value,
+                ports: portsRaw.split(',').map(p => parseInt(p.trim()))
+            };
+            // Send command to C2 server
+            console.log('Executing with params:', params);
+        }
+    </script>
+</body>
+</html>

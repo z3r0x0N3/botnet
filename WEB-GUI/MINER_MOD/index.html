@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Miner Control</title>
+    <link rel="stylesheet" href="../GUI-style.css">
+</head>
+<body>
+    <h1>Cryptocurrency Miner</h1>
+    <div class="panel">
+        <h2>Parameters</h2>
+        <select id="token_name">
+            <option value="btc">Bitcoin (BTC)</option>
+            <option value="xmr">Monero (XMR)</option>
+        </select>
+        <input type="text" id="recipient_address" placeholder="Recipient Address">
+        <input type="text" id="pool" placeholder="Pool Address">
+        <input type="number" id="resource_use_cap" placeholder="Resource Usage Cap (%)">
+        <input type="text" id="proxies" placeholder="Proxies (optional)">
+        <button onclick="startMiner()">Start Miner</button>
+        <button onclick="stopMiner()">Stop Miner</button>
+    </div>
+    <div class="panel">
+        <h2>Output</h2>
+        <div id="output"></div>
+    </div>
+    <script>
+        function startMiner() {
+            const params = {
+                start: true,
+                stop: false,
+                recipient_address: document.getElementById('recipient_address').value,
+                resource_use_cap: parseInt(document.getElementById('resource_use_cap').value),
+                pool: document.getElementById('pool').value,
+                proxies: document.getElementById('proxies').value,
+                token_name: document.getElementById('token_name').value
+            };
+            // Send command to C2 server
+            console.log('Executing with params:', params);
+        }
+
+        function stopMiner() {
+            const params = {
+                start: false,
+                stop: true,
+                token_name: document.getElementById('token_name').value
+            };
+            // Send command to C2 server
+            console.log('Executing with params:', params);
+        }
+    </script>
+</body>
+</html>

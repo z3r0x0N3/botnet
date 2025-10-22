@@ -42,10 +42,27 @@
         #bots li {
             cursor: pointer;
             padding: 5px;
+            display: flex;
+            align-items: center;
         }
         #bots li:hover, #bots li.selected {
             background-color: #bf00ff;
             color: #1a1a1a;
+        }
+        .status-circle {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .status-green {
+            background-color: #00ff00;
+        }
+        .status-yellow {
+            background-color: #ffff00;
+        }
+        .status-red {
+            background-color: #ff0000;
         }
         input[type="text"], button {
             background-color: #333;
@@ -106,46 +123,33 @@
     </div>
 
     <script>
-        // Placeholder for WebSocket connection
-        const socket = new WebSocket("ws://localhost:8080/ws");
-
         const botsList = document.getElementById('bots').getElementsByTagName('ul')[0];
         const commandInput = document.getElementById('command');
         const outputDiv = document.getElementById('output');
 
         let selectedBots = [];
 
-        socket.onopen = function(event) {
-            logToOutput("Connected to C2 server.");
-        };
-
-        socket.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-
-            if (data.type === 'bot_list') {
-                updateBotList(data.bots);
-            } else if (data.type === 'command_output') {
-                logToOutput(`[${data.bot_id}]: ${data.output}`);
-            }
-        };
-
-        socket.onclose = function(event) {
-            logToOutput("Disconnected from C2 server.");
-        };
-
-
-
         function updateBotList(bots) {
             botsList.innerHTML = '';
-            bots.forEach(botId => {
+            for (const botId in bots) {
+                const bot = bots[botId];
                 const li = document.createElement('li');
-                li.textContent = botId;
+                
+                const statusCircle = document.createElement('span');
+                statusCircle.className = `status-circle status-${bot.status}`;
+
+                const botIdSpan = document.createElement('span');
+                botIdSpan.textContent = botId;
+
+                li.appendChild(statusCircle);
+                li.appendChild(botIdSpan);
+
                 li.onclick = () => toggleBotSelection(li, botId);
                 if (selectedBots.includes(botId)) {
                     li.classList.add('selected');
                 }
                 botsList.appendChild(li);
-            });
+            }
         }
 
         function toggleBotSelection(li, botId) {
@@ -171,13 +175,26 @@
             }
 
             const message = {
-                type: 'command',
                 targets: selectedBots,
                 command: command
             };
 
-            socket.send(JSON.stringify(message));
-            logToOutput(`Sent command "${command}" to ${selectedBots.join(', ')}`);
+            fetch('/api/c2/command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(message)
+            })
+            .then(response => response.json())
+            .then(data => {
+                logToOutput(`Command sent to ${selectedBots.join(', ')}. Response: ${JSON.stringify(data)}`);
+            })
+            .catch(error => {
+                console.error('Error sending command:', error);
+                logToOutput('Error sending command.');
+            });
+
             commandInput.value = '';
         }
 
@@ -188,8 +205,20 @@
             outputDiv.scrollTop = outputDiv.scrollHeight;
         }
 
-        // Mock initial bot list for testing without a live backend
-        updateBotList(['bot-8a1b5c', 'bot-f3d9e0', 'bot-2c7a4e']);
+        function fetchBots() {
+            fetch('/api/bots')
+                .then(response => response.json())
+                .then(data => {
+                    updateBotList(data);
+                })
+                .catch(error => console.error('Error fetching bots:', error));
+        }
+
+        // Fetch bots every 5 seconds
+        setInterval(fetchBots, 5000);
+
+        // Initial fetch
+        fetchBots();
 
     </script>
 

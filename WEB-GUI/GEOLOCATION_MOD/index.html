@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geolocation Control</title>
+    <link rel="stylesheet" href="../GUI-style.css">
+</head>
+<body>
+    <h1>IP Geolocation</h1>
+    <div class="panel">
+        <h2>Parameters</h2>
+        <input type="text" id="ip_address" placeholder="IP Address">
+        <button onclick="execute()">Geolocate</button>
+    </div>
+    <div class="panel">
+        <h2>Output</h2>
+        <div id="output"></div>
+    </div>
+    <script>
+        function execute() {
+            const params = {
+                ip_address: document.getElementById('ip_address').value
+            };
+            // Send command to C2 server
+            console.log('Executing with params:', params);
+        }
+    </script>
+</body>
+</html>

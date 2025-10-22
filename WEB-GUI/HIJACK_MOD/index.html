@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resource Hijack Control</title>
+    <link rel="stylesheet" href="../GUI-style.css">
+</head>
+<body>
+    <h1>Resource Hijack</h1>
+    <div class="panel">
+        <h2>Parameters</h2>
+        <input type="text" id="process_name" placeholder="Process Name">
+        <input type="number" id="cpu_usage" placeholder="CPU Usage (%)">
+        <input type="number" id="duration" placeholder="Duration (seconds)">
+        <button onclick="execute()">Hijack</button>
+    </div>
+    <div class="panel">
+        <h2>Output</h2>
+        <div id="output"></div>
+    </div>
+    <script>
+        function execute() {
+            const params = {
+                process_name: document.getElementById('process_name').value,
+                cpu_usage: parseInt(document.getElementById('cpu_usage').value),
+                duration: parseInt(document.getElementById('duration').value)
+            };
+            // Send command to C2 server
+            console.log('Executing with params:', params);
+        }
+    </script>
+</body>
+</html>

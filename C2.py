@@ -27,7 +27,7 @@ import psutil
 from subprocess import Popen, PIPE
 import csv
 import stat
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 
 app = Flask(__name__)
 
@@ -182,6 +182,18 @@ def main():
             sys.exit(0)
         else:
             print("Invalid choice.")
+
+@app.route('/')
+def index():
+    return send_from_directory('WEB-GUI', 'GUI-index.html')
+
+@app.route('/<module>')
+def module_page(module):
+    return send_from_directory(os.path.join('WEB-GUI', module), 'index.html')
+
+@app.route('/GUI-style.css')
+def style():
+    return send_from_directory('WEB-GUI', 'GUI-style.css')
 
 if __name__ == '__main__':
     main()

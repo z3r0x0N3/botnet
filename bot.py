@@ -39,7 +39,8 @@ TOR_URLS = {
     "Linux_i686": "https://dist.torproject.org/torbrowser/14.5.6/tor-expert-bundle-linux-i686-14.5.6.tar.gz"
 }
 
-TOR_FOLDER = "TorExpert"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+TOR_FOLDER = os.path.join(SCRIPT_DIR, "TorExpert")
 TOR_EXE_NAME = "tor.exe"        # Only for Windows
 TOR_BIN_NAME = "tor"            # Linux/macOS binary name
 TOR_HOST = "127.0.0.1"

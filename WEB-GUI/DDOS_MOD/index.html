@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DDoS Control</title>
+    <link rel="stylesheet" href="../GUI-style.css">
+</head>
+<body>
+    <h1>DDoS Attack</h1>
+    <div class="panel">
+        <h2>Parameters</h2>
+        <input type="text" id="target" placeholder="Target IP">
+        <input type="number" id="port" placeholder="Port">
+        <select id="method">
+            <option value="syn-flood">SYN Flood</option>
+            <option value="udp-flood">UDP Flood</option>
+            <option value="http-flood">HTTP Flood</option>
+        </select>
+        <input type="number" id="duration" placeholder="Duration (seconds)">
+        <input type="number" id="pps" placeholder="Packets Per Second">
+        <button onclick="execute()">Launch Attack</button>
+    </div>
+    <div class="panel">
+        <h2>Output</h2>
+        <div id="output"></div>
+    </div>
+    <script>
+        function execute() {
+            const params = {
+                target: document.getElementById('target').value,
+                port: parseInt(document.getElementById('port').value),
+                method: document.getElementById('method').value,
+                duration: parseInt(document.getElementById('duration').value),
+                pps: parseInt(document.getElementById('pps').value)
+            };
+            // Send command to C2 server
+            console.log('Executing with params:', params);
+        }
+    </script>
+</body>
+</html>

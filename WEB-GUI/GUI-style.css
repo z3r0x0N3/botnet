@@ -45,3 +45,32 @@ button:hover {
     padding: 10px;
     background-color: #111;
 }
+
+.popup {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+}
+
+.popup.hidden {
+    display: none;
+}
+
+.popup .popup-content {
+    background: #2a2a2a;
+    border: 1px solid #bf00ff;
+    border-radius: 6px;
+    padding: 20px;
+    min-width: 280px;
+    text-align: center;
+    box-shadow: 0 0 12px rgba(191, 0, 255, 0.4);
+}
+
+.popup.error .popup-content {
+    border-color: #ff4d4d;
+    box-shadow: 0 0 12px rgba(255, 77, 77, 0.5);
+}

